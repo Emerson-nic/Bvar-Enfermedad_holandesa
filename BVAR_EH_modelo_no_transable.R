@@ -568,7 +568,7 @@ plot_convergencia_profesional <- function(chain, nombre, window = 0.1) {
                linewidth = 1) +
     labs(
       title = paste("Trazado de la Cadena MCMC:", nombre),
-      subtitle = paste("ESS =", round(ess, 1), "| ACF(lag13) =", round(acf2, 2)),
+      subtitle = paste("ESS =", round(ess, 1), "| ACF(lag7) =", round(acf7, 3)),
       x = "Iteración",
       y = "Valor"
     ) +
@@ -620,7 +620,7 @@ plot_convergencia_profesional <- function(chain, nombre, window = 0.1) {
     plot_annotation(
       title    = paste("Diagnóstico de Convergencia:", nombre),
       subtitle = "Análisis de cadena MCMC",
-      caption  = "Fuente: BCN, SEMCA & FRED | Elaboración propia estimada con modelo BVAR",
+      caption  = "Fuente: BCN, SECMCA & FRED | Elaboración propia estimada con modelo BVAR",
       theme    = theme(
         plot.title = element_text(face = "bold", size = 18, hjust = 0.5, color = "#2C3E50"),
         plot.subtitle = element_text(size = 14, hjust = 0.5, color = "#7F8C8D"),
