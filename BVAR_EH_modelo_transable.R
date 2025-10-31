@@ -80,28 +80,28 @@ verificar_estacionariedad <- function(data, nombre_col, nombre_etiq, diff = 1) {
 resultados <- list()
 
 #aplicar 1ra diferencias a algunas series 
-resultados$d2_itcer <- verificar_estacionariedad(
+resultados$d1_itcer <- verificar_estacionariedad(
   data = endogenas_originales, 
   nombre_col = "itcer", 
   nombre_etiq = "Primera diferencia de ITCER",
   diff = 1
 )
 
-resultados$d2_iti <- verificar_estacionariedad(
+resultados$d1_iti <- verificar_estacionariedad(
   data = endogenas_originales, 
   nombre_col = "iti", 
   nombre_etiq = "Primera diferencia de ITI",
   diff = 1
 )
 
-resultados$d2_no_transable <- verificar_estacionariedad(
+resultados$d1_no_transable <- verificar_estacionariedad(
   data = endogenas_originales, 
   nombre_col = "no_transable", 
   nombre_etiq = "Primera diferencia de Sector No Transable",
   diff = 1
 )
 
-resultados$d2_transable <- verificar_estacionariedad(
+resultados$d1_transable <- verificar_estacionariedad(
   data = endogenas_originales,
   nombre_col = "transable",
   nombre_etiq = "Primera diferencia de Sector Transable",
@@ -121,7 +121,6 @@ resultados$d1_remesas <- verificar_estacionariedad(
   nombre_etiq = "Primera diferencia de Remesas",
   diff = 1
 )
-
 
 #dataset
 endogenas_transformadas <- data.frame(
@@ -1726,3 +1725,4 @@ message("Exportado: ", normalizePath(out))
 # Agregar nota al pie manualmente
 cat("Los valores representan el porcentaje de la varianza de cada variable explicada por shocks la variables. Los intervalos de confianza al 95% se muestran entre corchetes.\n")
 ##################################################################################################################################################################################
+
