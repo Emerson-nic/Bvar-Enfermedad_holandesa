@@ -7,7 +7,7 @@ pacman::p_load(
   parallel, magrittr, coda, forecast, gridExtra,
   MASS, grid, lubridate, reshape2, FinTS, gt, scales, ggforce,
   nortest, rugarch,DescTools, ggrepel, ggthemes, bsvars, tidyr,
-  zoo,xtable,readxl
+  zoo,xtable,readxl,openxlsx
 )
 
 #exportar
@@ -16,34 +16,9 @@ data <- read_excel(choose.files())
 
 # preparacion de datos 
 
-series <- c("exportaciones_primarias_reales","itcer","ipi_eeuu", 
-            "iti", "exportaciones_manofactura_reales", "remesas_reales", 
+series <- c("itcer","ipi_eeuu", "iti", "transable", "remesas", 
             "no_transable")
 
-# # jonth test
-# y_levels <- data %>%
-#   dplyr::select(all_of(series)) %>%
-#   na.omit() %>%
-#   as.matrix()
-# 
-# # rezagos máximo 
-# lag_range <- 2:8
-# 
-# # guardar resultados
-# joh_results <- lapply(lag_range, function(p) {
-#   joh <- ca.jo(y_levels, type = "trace", ecdet = "const", K = p)
-#   list(lag = p, summary = summary(joh))
-# })
-# 
-# #resultados
-# for (res in joh_results) {
-#   cat("\n==========================\n")
-#   cat("Rezagos:", res$lag, "\n")
-#   print(res$summary@teststat)   # estadísticos de la prueba
-#   print(res$summary@cval)       # valores críticos
-# }
-
-  #estacionariedad
 endogenas_originales <- data[, series]
 verificar_estacionariedad <- function(data, nombre_col, nombre_etiq, diff = 1) {
   #diferenciar
@@ -104,40 +79,32 @@ verificar_estacionariedad <- function(data, nombre_col, nombre_etiq, diff = 1) {
 #lista de resultados
 resultados <- list()
 
-#aplicar segundas diferencias a algunas series 
+#aplicar 1ra diferencias a algunas series 
 resultados$d2_itcer <- verificar_estacionariedad(
   data = endogenas_originales, 
   nombre_col = "itcer", 
-  nombre_etiq = "Segunda diferencia de ITCER",
-  diff = 2
+  nombre_etiq = "Primera diferencia de ITCER",
+  diff = 1
 )
 
 resultados$d2_iti <- verificar_estacionariedad(
   data = endogenas_originales, 
   nombre_col = "iti", 
-  nombre_etiq = "Segunda diferencia de ITI",
-  diff = 2
+  nombre_etiq = "Primera diferencia de ITI",
+  diff = 1
 )
 
 resultados$d2_no_transable <- verificar_estacionariedad(
   data = endogenas_originales, 
   nombre_col = "no_transable", 
-  nombre_etiq = "Segunda diferencia de Sector No Transable",
-  diff = 2
-)
-
-#mantener primeras diferencias estacionarias
-resultados$d1_export_mano <- verificar_estacionariedad(
-  data = endogenas_originales,
-  nombre_col = "exportaciones_manofactura_reales",
-  nombre_etiq = "Primera diferencia de Exportaciones Manufactura",
+  nombre_etiq = "Primera diferencia de Sector No Transable",
   diff = 1
 )
 
-resultados$d1_export_primaria <- verificar_estacionariedad(
+resultados$d2_transable <- verificar_estacionariedad(
   data = endogenas_originales,
-  nombre_col = "exportaciones_primarias_reales",
-  nombre_etiq = "Primera diferencia de Exportaciones Primarias",
+  nombre_col = "transable",
+  nombre_etiq = "Primera diferencia de Sector Transable",
   diff = 1
 )
 
@@ -150,21 +117,21 @@ resultados$d1_ipi_eeuu <- verificar_estacionariedad(
 
 resultados$d1_remesas <- verificar_estacionariedad(
   data = endogenas_originales,
-  nombre_col = "remesas_reales",
+  nombre_col = "remesas",
   nombre_etiq = "Primera diferencia de Remesas",
   diff = 1
 )
 
+
 #dataset
 endogenas_transformadas <- data.frame(
-  d2_itcer = c(NA, NA, diff(diff(data$itcer))),
-  d2_iti = c(NA, NA, diff(diff(data$iti))),
-  d2_no_transable = c(NA, NA, diff(diff(data$no_transable))),
+  d1_itcer = c(NA, diff(data$itcer)),
+  d1_iti = c(NA, diff(data$iti)),
+  d1_no_transable = c(NA, diff(data$no_transable)),
+  d1_transable = c(NA,diff(data$transable)),
   
-  d1_export_manof = c(NA, diff(data$exportaciones_manofactura_reales)),
-  d1_export_primaria = c(NA, diff(data$exportaciones_primarias_reales)),
   d1_ipi_eeuu = c(NA, diff(data$ipi_eeuu)),
-  d1_remesas = c(NA, diff(data$remesas_reales))
+  d1_remesas = c(NA, diff(data$remesas))
 )
 
 #dummys
@@ -249,8 +216,7 @@ plot_series_professional <- function(data, var_name, title) {
       title    = title,
       subtitle = "Serie transformada con eventos destacados",
       x        = NULL,
-      y        = NULL,
-      caption  = "Fuente: Elaboración propia con datos del BCN, SEMCA & FRED"
+      y        = NULL
     ) +
     theme_minimal(base_size = 13) +
     theme(
@@ -268,20 +234,19 @@ plot_series_professional <- function(data, var_name, title) {
 }
 
 # graficos aplicados
-p1 <- plot_series_professional(data_final, "d2_itcer", "Segunda diferencia de ITCER")
-p2 <- plot_series_professional(data_final, "d2_iti", "Segunda diferencia de Términos de Intercambio")
-p3 <- plot_series_professional(data_final, "d2_no_transable", "Segunda diferencia de Sector No Transable")
-p4 <- plot_series_professional(data_final, "d1_export_manof", "Primera diferencia de Exportaciones Manufactura")
-p5 <- plot_series_professional(data_final, "d1_export_primaria", "Primera diferencia de Exportaciones Primarias")
-p6 <- plot_series_professional(data_final, "d1_ipi_eeuu", "Primera diferencia de IPI EEUU")
-p7 <- plot_series_professional(data_final, "d1_remesas", "Primera diferencia de Remesas")
+p1 <- plot_series_professional(data_final, "d1_itcer", "Primera diferencia de ITCER")
+p2 <- plot_series_professional(data_final, "d1_iti", "Primera diferencia de Términos de Intercambio")
+p3 <- plot_series_professional(data_final, "d1_no_transable", "Primera diferencia de Sector No Transable")
+p4 <- plot_series_professional(data_final, "d1_transable", "Primera diferencia del Sector Transable")
+p5 <- plot_series_professional(data_final, "d1_ipi_eeuu", "Primera diferencia de IPI EEUU")
+p6 <- plot_series_professional(data_final, "d1_remesas", "Primera diferencia de Remesas")
 
 #combinar graficos
-combined_plot_1 <- (p1 | p2 | p3) +
+combined_plot_1 <- (p1 | p2) +
   plot_annotation(
     title    = "Series Transformadas para Modelo BVAR",
     subtitle = "Diferenciadas según requerimiento de estacionariedad",
-    caption  = "Nota: Series estacionarizadas mediante diferencias",
+    caption  = "Nota: Series estacionarizadas mediante diferencias\nFuente: Elaboración propia con datos del BCN, SEMCA & FRED",
     theme    = theme(
       plot.title    = element_text(face = "bold", size = 18, hjust = 0.5),
       plot.subtitle = element_text(size = 14, hjust = 0.5, color = "gray30"),
@@ -291,11 +256,11 @@ combined_plot_1 <- (p1 | p2 | p3) +
     )
   )
 
-combined_plot_2 <-(p4 | p5) / (p6 | p7) +
+combined_plot_2 <-(p4 | p5 | p6)  +
   plot_annotation(
     title    = "Series Transformadas para Modelo BVAR",
     subtitle = "Diferenciadas según requerimiento de estacionariedad",
-    caption  = "Nota: Series estacionarizadas mediante diferencias",
+    caption  = "Nota: Series estacionarizadas mediante diferencias\nFuente: Elaboración propia con datos del BCN, SEMCA & FRED",
     theme    = theme(
       plot.title    = element_text(face = "bold", size = 18, hjust = 0.5),
       plot.subtitle = element_text(size = 14, hjust = 0.5, color = "gray30"),
@@ -312,13 +277,12 @@ print(combined_plot_2)
 endogenas_transformadas <- na.omit(endogenas_transformadas)
 
 data_final <- data.frame(
-  d2_itcer = c(NA, NA, diff(diff(data$itcer))),
-  d2_iti = c(NA, NA, diff(diff(data$iti))),
-  d2_no_transable = c(NA, NA, diff(diff(data$no_transable))),
-  d1_export_manof = c(NA, diff(data$exportaciones_manofactura_reales)),
-  d1_export_primaria = c(NA, diff(data$exportaciones_primarias_reales)),
+  d1_itcer = c(NA,(diff(data$itcer))),
+  d1_iti = c(NA,(diff(data$iti))),
+  d1_no_transable = c(NA,(diff(data$no_transable))),
+  d1_transable = c(NA, (diff(data$transable))),
   d1_ipi_eeuu = c(NA, diff(data$ipi_eeuu)),
-  d1_remesas = c(NA, diff(data$remesas_reales)),
+  d1_remesas = c(NA, diff(data$remesas)),
   dummy_2008 = data$dummy_2008,
   dummy_2018 = data$dummy_2018,
   dummy_2020 = data$dummy_2020
@@ -328,8 +292,7 @@ data_final <- na.omit(data_final)
 
 # orden de lags
 endogenas <- data_final[, c(
-   "d2_itcer", "d2_iti", "d2_no_transable","d1_export_manof",
-   "d1_export_primaria", "d1_ipi_eeuu", "d1_remesas"   
+  "d1_itcer", "d1_iti", "d1_transable", "d1_ipi_eeuu", "d1_remesas"   
 )]
 
 exogenas <- data_final[, c("dummy_2018", "dummy_2020", "dummy_2008")]
@@ -338,7 +301,7 @@ exogenas <- data_final[, c("dummy_2018", "dummy_2020", "dummy_2008")]
 lag_selection <- vars::VARselect( 
   y = endogenas,
   exogen = exogenas,
-  lag.max = 6,
+  lag.max = 7,
   type = "const"
 )
 
@@ -353,12 +316,10 @@ print(lag_selection$criteria)
 
 endogenas <- as.matrix(data_final[, c(
   "d1_ipi_eeuu",
-  "d2_iti",
   "d1_remesas",
-  "d2_itcer",  
-  "d1_export_manof",            
-  "d1_export_primaria",              
-  "d2_no_transable" 
+  "d1_iti",
+  "d1_itcer",  
+  "d1_transable"
 )])
 
 exogenas <- as.matrix(data_final[, c(
@@ -411,15 +372,13 @@ cat("- Psi          :",
     ifelse(is.na(hyper_opt$psi), "No disponible", 
            round(hyper_opt$psi, 4)), "\n")
 
-#enfermedad holandesa 
+#Orden psi
 var_names <- c(
   "d1_ipi_eeuu",
-  "d2_iti",
   "d1_remesas",
-  "d2_itcer",  
-  "d1_export_manof",            
-  "d1_export_primaria",              
-  "d2_no_transable" 
+  "d1_iti",
+  "d1_itcer",
+  "d1_transable"
 )
 
 psi_modes <- hyper_opt$psi
@@ -607,7 +566,7 @@ plot_convergencia_profesional <- function(chain, nombre, window = 0.1) {
                linewidth = 1) +
     labs(
       title = paste("Trazado de la Cadena MCMC:", nombre),
-      subtitle = paste("ESS =", round(ess, 1), "| ACF(lag13) =", round(acf2, 2)),
+      subtitle = paste("ESS =", round(ess, 1), "| ACF(lag7) =", round(acf7, 3)),
       x = "Iteración",
       y = "Valor"
     ) +
@@ -659,7 +618,7 @@ plot_convergencia_profesional <- function(chain, nombre, window = 0.1) {
     plot_annotation(
       title    = paste("Diagnóstico de Convergencia:", nombre),
       subtitle = "Análisis de cadena MCMC",
-      caption  = "Fuente: BCN, SEMCA & FRED | Elaboración propia estimada con modelo BVAR",
+      caption  = "Fuente: BCN, SECMCA & FRED | Elaboración propia estimada con modelo BVAR",
       theme    = theme(
         plot.title = element_text(face = "bold", size = 18, hjust = 0.5, color = "#2C3E50"),
         plot.subtitle = element_text(size = 14, hjust = 0.5, color = "#7F8C8D"),
@@ -719,22 +678,18 @@ plot_irf <- function(df) {
   
   labels <- c(
     d1_remesas = "Remesas",
-    d2_itcer = "Tipo de Cambio Real",
-    d1_export_manof = "Export. Manufactura",
+    d1_itcer = "Tipo de Cambio Real",
     d1_ipi_eeuu = "IPI Estados Unidos",
-    d2_no_transable = "Sector No Transable",
-    d2_iti = "ITI",
-    d1_export_primaria = "Export. Primarias"
+    d1_iti = "ITI",
+    d1_transable = "Sector Transable"
   )
   
   color_palette <- list(
     "d1_remesas" = "#3498DB",
-    "d2_itcer" = "#2ECC71",
-    "d1_export_manof" = "#FF5733", 
+    "d1_itcer" = "#2ECC71",
+    "d1_transable" = "#FF5733", 
     "d1_ipi_eeuu" = "#9B59B6",
-    "d2_no_transable" = "#D62728",
-    "d2_iti" = "#F39C12",
-    "d1_export_primaria" = "#a80e6f"
+    "d1_iti" = "#F39C12"
   )
   
   color_fill <- color_palette[[df$impulso[1]]]
@@ -748,13 +703,13 @@ plot_irf <- function(df) {
     geom_point(data = pt, aes(y = mediana), color = "#E74C3C", size = 3) +
     geom_text(data = pt,
               aes(x = periodo, y = mediana * 1.1,
-                  label = paste0(periodo, "m: ", round(mediana, 3))),
+                  label = paste0(periodo, "T: ", round(mediana, 3))),
               color = "#E74C3C", fontface = "bold", size = 3.5,
               vjust = ifelse(pt$mediana > 0, -0.5, 1.2)) +
     labs(
       title = paste("Shock en", labels[df$impulso[1]]),
       subtitle = paste("Respuesta de", labels[df$respuesta[1]]),
-      x = "Meses después del shock",
+      x = "Trimestre después del shock",
       y = "Mediana IRF",
       caption = paste0("Intervalo de credibilidad al ", 95, "%")
     ) +
@@ -772,19 +727,16 @@ plot_irf <- function(df) {
 # 1er plot
 
 irf_list_11 <- list(
-  get_irf_data(irf_all, "d1_remesas", "d2_itcer"),
-  get_irf_data(irf_all, "d2_itcer", "d2_no_transable"),
-  get_irf_data(irf_all, "d1_export_manof", "d2_itcer"),#por el orden chycky no es confieable
-  get_irf_data(irf_all, "d2_itcer", "d1_export_manof")
+  get_irf_data(irf_all, "d1_remesas", "d1_itcer"),
+  get_irf_data(irf_all, "d1_itcer", "d1_transable")
 )
 
 plots_11 <- lapply(irf_list_11, plot_irf)
 
-combined_11 <- (plots_11[[1]] | plots_11[[2]]) /
-  (plots_11[[3]] | plots_11[[4]]) +
+combined_11 <- (plots_11[[1]] | plots_11[[2]] ) +
   plot_annotation(
     title  = "Efecto de las Variables",
-    subtitle = "Análisis de Impulso-Respuesta (Parte 1)",
+    subtitle = "Análisis de Impulso-Respuesta",
     caption  = paste0("Horizonte: ", n_horizon, " Trimestres | Periodo: 2006-2023\n",
                       "Fuente: BCN, SEMCA & FRED| Elaboración propia estimada con modelo BVAR"),
     theme = theme(
@@ -800,20 +752,17 @@ combined_11 <- (plots_11[[1]] | plots_11[[2]]) /
 # 2do plot
 
 irf_list_22 <- list(
-  get_irf_data(irf_all, "d1_ipi_eeuu", "d2_itcer"),
-  get_irf_data(irf_all, "d2_itcer", "d1_export_primaria"),
-  get_irf_data(irf_all, "d2_iti", "d2_itcer"),
-  get_irf_data(irf_all, "d1_export_manof", "d2_no_transable")
+  get_irf_data(irf_all, "d1_ipi_eeuu", "d1_itcer"),
+  get_irf_data(irf_all, "d1_iti", "d1_itcer")
 )
 
 plots_22 <- lapply(irf_list_22, plot_irf)
 
-combined_22 <- (plots_22[[1]] | plots_22[[2]]) /
-  (plots_22[[3]] | plots_22[[4]]) +
+combined_22 <- (plots_22[[1]] | plots_22[[2]]) +
   
   plot_annotation(
     title    = "Efecto de las Variables",
-    subtitle = "Análisis de Impulso-Respuesta (Parte 2)",
+    subtitle = "Análisis de Impulso-Respuesta",
     caption  = paste0("Horizonte: ", n_horizon, " Trimestres | Periodo: 2006-2023\n",
                       "Fuente: BCN, SEMCA & FRED| Elaboración propia estimada con modelo BVAR"),
     theme = theme(
@@ -828,32 +777,56 @@ combined_22 <- (plots_22[[1]] | plots_22[[2]]) /
 # 3er plot
 
 irf_list_33 <- list(
-  get_irf_data(irf_all, "d1_remesas", "d1_export_manof"),
-  get_irf_data(irf_all, "d1_remesas", "d1_export_primaria")
+  get_irf_data(irf_all, "d1_remesas", "d1_transable")
 )
 
 plots_33 <- lapply(irf_list_33, plot_irf)
 
-combined_33 <- (plots_33[[1]] | plots_33[[2]]) +
+combined_33 <- (plots_33[[1]]) +
   
-plot_annotation(
-  title    = "Efecto de las Variables",
-  subtitle = "Análisis de Impulso-Respuesta (Parte 3)",
-  caption  = paste0("Horizonte: ", n_horizon, " Trimestres | Periodo: 2006-2023\n",
-                    "Fuente: BCN, SEMCA & FRED| Elaboración propia estimada con modelo BVAR"),
-  theme = theme(
-    plot.title = element_text(face = "bold", size = 20, hjust = 0.5, color = "#2C3E50"),
-    plot.subtitle = element_text(size = 18, hjust = 0.5, color = "#34495E"),
-    plot.caption = element_text(size = 16, color = "#7F8C8D", hjust = 0.5),
-    plot.background = element_rect(fill = "white", color = NA),
-    panel.background = element_rect(fill = "white", color = NA)
+  plot_annotation(
+    title    = "Efecto de las Variables",
+    subtitle = "Análisis de Impulso-Respuesta",
+    caption  = paste0("Horizonte: ", n_horizon, " Trimestres | Periodo: 2006-2023\n",
+                      "Fuente: BCN, SEMCA & FRED| Elaboración propia estimada con modelo BVAR"),
+    theme = theme(
+      plot.title = element_text(face = "bold", size = 20, hjust = 0.5, color = "#2C3E50"),
+      plot.subtitle = element_text(size = 18, hjust = 0.5, color = "#34495E"),
+      plot.caption = element_text(size = 16, color = "#7F8C8D", hjust = 0.5),
+      plot.background = element_rect(fill = "white", color = NA),
+      panel.background = element_rect(fill = "white", color = NA)
+    )
   )
-)
 
 
 print(combined_11)
 print(combined_22)
 print(combined_33)
+
+#exportar a excel para mejor visivilidad
+
+#lista usada 
+irf_combinados_transable <- list(
+  get_irf_data(irf_all, "d1_remesas", "d1_itcer"),
+  get_irf_data(irf_all, "d1_itcer", "d1_transable"),
+  get_irf_data(irf_all, "d1_ipi_eeuu", "d1_itcer"),
+  get_irf_data(irf_all, "d1_iti", "d1_itcer"),
+  get_irf_data(irf_all, "d1_remesas", "d1_transable")
+)
+
+#lista combinada
+todos_los_irfs_transable <- do.call(rbind, irf_combinados_transable)
+
+#excel
+hoja_irf <- list(
+  "Irfs_Total" = todos_los_irfs_transable,           #todos los irfs
+  "Remesas_ITCER" = todos_los_irfs_transable[1],  #separados
+  "ITCER_Transable" = todos_los_irfs_transable[5]
+)
+
+#exportarlo
+write.xlsx(hoja_irf, file = "irf_total(modelo transable).xlsx")
+
 
 #para obtener el horizonte de los irf quite el # del siguiente scritp
 
@@ -862,53 +835,6 @@ irf_horizonte_df <- bind_rows(irf_total_list)
 print(irf_horizonte_df)
 #View(irf_horizonte_df)
 #print(irf_horizonte_df[167:252, ])
-
-#para la tabla latex de 4 decimales
-irf_fmt <- irf_horizonte_df %>%
-  mutate(across(c(inferior, mediana, superior), ~ sprintf("%.4f", .)))
-
-
-
-xt_full <- xtable(irf_fmt, caption = "Funciones de Impulso-Respuesta (IRF)")
-print(xt_full,
-      type            = "latex",
-      file            = "irf_tabla_xtable.tex",
-      include.rownames = FALSE)
-
-make_irf_table <- function(imp, resp, fname, cap) {
-  df <- irf_fmt %>%
-    filter(impulso == imp, respuesta == resp)
-  xt <- xtable(df, caption = cap)
-  print(xt,
-        type             = "latex",
-        file             = fname,
-        include.rownames = FALSE)
-}
-
-make_irf_table("d1_remesas", "d2_itcer",
-               "tabla_irf_remesa_itcer.tex",
-               "Irf Chock Remesa afecta a ITCER")
-
-make_irf_table("d2_itcer", "d1_export_manof",
-               "tabla_irf_itcer_exp_manof.tex",
-               "Irf Chock ITCER afecta a Exportaciones Manufactura")
-
-make_irf_table("d2_iti", "d2_itcer",
-               "tabla_irf_iti_itcer.tex",
-               "Irf Chock ITI afecta a ITCER")
-
-make_irf_table("d2_itcer", "d1_export_primaria",
-               "tabla_irf_itcer_exp_primaria.tex",
-               "Irf Chock ITCER afecta a Exportaciones Primarias")
-
-make_irf_table("d1_remesas", "d1_export_manof",
-               "tabla_irf_remesas_exp_manof.tex",
-               "Irf Chock Remesa afecta a Exportaciones Manufactura")
-
-make_irf_table("d1_remesas", "d1_export_primaria",
-               "tabla_irf_remesas_exp_primaria.tex",
-               "Irf Chock Remesa afecta a Exportaciones Primarias")
-
 
 # irfs acumulados
 
@@ -938,36 +864,28 @@ get_irf_acumulada <- function(irf_obj, impulse, response) {
 }
 
 irf_list_acum <- list(
-  get_irf_acumulada(irf_all, "d1_remesas", "d2_itcer"),
-  get_irf_acumulada(irf_all, "d2_itcer", "d2_no_transable"),
-  get_irf_acumulada(irf_all, "d1_export_manof", "d2_itcer"),
-  get_irf_acumulada(irf_all, "d1_export_manof", "d2_no_transable"),
-  get_irf_acumulada(irf_all, "d1_ipi_eeuu", "d2_itcer"),
-  get_irf_acumulada(irf_all, "d2_itcer", "d1_export_primaria"),
-  get_irf_acumulada(irf_all, "d2_iti", "d2_itcer"),
-  get_irf_acumulada(irf_all, "d1_ipi_eeuu", "d1_export_primaria")
+  get_irf_acumulada(irf_all, "d1_remesas", "d1_itcer"),
+  get_irf_acumulada(irf_all, "d1_ipi_eeuu", "d1_itcer"),
+  get_irf_acumulada(irf_all, "d1_itcer", "d1_transable"),
+  get_irf_acumulada(irf_all, "d1_iti", "d1_itcer")
 )
 
 plot_irf_acum11 <- function(df) {
   labels <- c(
     d1_remesas = "Remesas",
-    d2_itcer = "Tipo de Cambio Real",
-    d1_export_manof = "Export. Manufactura",
+    d1_itcer = "Tipo de Cambio Real",
     d1_ipi_eeuu = "IPI Estados Unidos",
-    d2_no_transable = "Sector No Transable",
-    d2_iti = "ITI",
-    d1_export_primaria = "Export. Primarias"
+    d1_iti = "ITI",
+    d1_transable = "Sector Transable"
   )
-
+  
   
   color_palette <- list(
     "d1_remesas" = "#3498DB",
-    "d2_itcer" = "#2ECC71",
-    "d1_export_manof" = "#FF5733", 
+    "d1_itcer" = "#2ECC71",
+    "d1_transable" = "#FF5733", 
     "d1_ipi_eeuu" = "#9B59B6",
-    "d2_no_transable" = "#D62728",
-    "d2_iti" = "#F39C12",
-    "d1_export_primaria" = "#a80e6f"
+    "d1_iti" = "#F39C12"
   )
   
   color_fill <- color_palette[[df$impulso[1]]]
@@ -1006,13 +924,13 @@ plot_irf_acum11 <- function(df) {
     geom_point(data = pt, aes(y = mediana), color = "#E74C3C", size = 3) +
     geom_text(data = pt,
               aes(x = periodo, y = mediana * 1.1,
-                  label = paste0(periodo, "m: ", round(mediana, 3))),
+                  label = paste0(periodo, "T: ", round(mediana, 3))),
               color = "#E74C3C", fontface = "bold", size = 3.5,
               vjust = ifelse(pt$mediana > 0, -0.5, 1.2)) +
     labs(
       title = paste("Shock Acumunlado en", labels[df$impulso[1]]),
       subtitle = paste("Respuesta de", labels[df$respuesta[1]]),
-      x = "Meses después del shock",
+      x = "Trimestre después del shock",
       y = "Mediana IRF",
       caption = paste0("Intervalo de credibilidad al ", 95, "%")
     ) +
@@ -1033,8 +951,7 @@ plots_acum11 <- lapply(irf_list_acum, function(df) {
   tryCatch(plot_irf_acum11(df), error = function(e) ggplot() + labs(title = "Error en gráfico"))
 })
 
-combined_acum_11 <- (plots_acum11[[1]] | plots_acum11[[2]]) /
-  (plots_acum11[[3]] | plots_acum11[[4]]) +
+combined_acum_11 <- (plots_acum11[[1]] | plots_acum11[[2]] ) +
   plot_annotation(
     title = "Análisis de Impulso-Respuesta Acumulado (Parte 1)",
     subtitle = "Efectos Acumulados de los Shocks de Bonanza y Producción",
@@ -1050,8 +967,7 @@ combined_acum_11 <- (plots_acum11[[1]] | plots_acum11[[2]]) /
   )
 
 # 2do plot
-combined_acum_22 <- (plots_acum11[[5]] | plots_acum11[[6]]) /
-  (plots_acum11[[7]] | plots_acum11[[8]]) +
+combined_acum_22 <- (plots_acum11[[3]] | plots_acum11[[4]]) +
   plot_annotation(
     title = "Análisis de Impulso-Respuesta Acumulado (Parte 2)",
     subtitle = "Efectos Acumulados de la Enfermedad Holandesa y Controles Externos",
@@ -1069,40 +985,24 @@ combined_acum_22 <- (plots_acum11[[5]] | plots_acum11[[6]]) /
 print(combined_acum_11)
 print(combined_acum_22)
 
-#tablas latex
+#lista usada 
+irf_list_acum_transable <- list(
+  get_irf_acumulada(irf_all, "d1_remesas", "d1_itcer"),
+  get_irf_acumulada(irf_all, "d1_ipi_eeuu", "d1_itcer"),
+  get_irf_acumulada(irf_all, "d1_itcer", "d1_transable"),
+  get_irf_acumulada(irf_all, "d1_iti", "d1_itcer")
+)
 
-irf_horizonte_acum_df <- bind_rows(irf_list_acum)
+#lista combinada
+todos_los_irfs_acum_transable <- do.call(rbind, irf_list_acum_transable)
 
-irf_acum_fmt <- irf_horizonte_acum_df %>%
-  mutate(across(c(inferior, mediana, superior), ~ sprintf("%.4f", .)))
+#excel
+hoja_irf_acum_transable <- list(
+  "Irfs_Total_acum_transable" = todos_los_irfs_acum_transable  #todos los irfs
+)
 
-xt_full_acum <- xtable(irf_acum_fmt, caption = "Funciones de Impulso-Respuesta Acumuladas (IRF)")
-print(xt_full_acum,
-      type = "latex",
-      file = "irf_acum_tabla_completa.tex",
-      include.rownames = FALSE)
-
-make_irf_acum_table <- function(imp, resp, fname, cap) {
-  df <- irf_acum_fmt %>%
-    filter(impulso == imp, respuesta == resp)
-  xt <- xtable(df, caption = cap)
-  print(xt,
-        type = "latex",
-        file = fname,
-        include.rownames = FALSE)
-}
-
-make_irf_acum_table("d1_remesas", "d2_itcer",
-                    "tabla_irf_remesa_itcer.tex",
-                    "Irf Chock Remesa afecta a ITCER")
-
-make_irf_acum_table("d2_itcer", "d1_export_manof",
-                    "tabla_irf_itcer_exp_manof.tex",
-                    "Irf Chock ITCER afecta a Exportaciones Manufactura")
-
-make_irf_acum_table("d2_iti", "d2_itcer",
-                    "tabla_irf_iti_itcer.tex",
-                    "Irf Chock ITI afecta a ITCER")
+#exportarlo
+write.xlsx(hoja_irf_acum_transable, file = "irf_total_acum_transable.xlsx")
 
 # diagnostico de resuduos bvar 
 
@@ -1114,7 +1014,7 @@ make_acf <- function(vec, varname) {
   forecast::ggAcf(vec, lag.max = 36) +
     labs(
       title = paste("ACF de residuos de", varname),
-      x = "Rezago (meses)",
+      x = "Rezago (Trimestre)",
       y = "ACF"
     ) +
     theme_minimal(base_size = 8) +
@@ -1128,7 +1028,7 @@ make_pacf <- function(vec, varname) {
   forecast::ggPacf(vec, lag.max = 36) +
     labs(
       title = paste("PACF de residuos de", varname),
-      x     = "Rezago (meses)",
+      x     = "Rezago (Trimestre)",
       y     = "PACF"
     ) +
     theme_minimal(base_size = 8) +
@@ -1191,7 +1091,7 @@ plot_acf_pacf <- function(vec, varname, lag.max = 12) {
     geom_hline(yintercept = c(-1, 1) * conf_level, 
                linetype = "dashed", color = warm_orange) +
     labs(title = paste("PACF:", varname),
-         x = "Rezago (meses)", y = "Autocorr. Parcial") +
+         x = "Rezago (Trimestre)", y = "Autocorr. Parcial") +
     scale_x_continuous(breaks = seq(0, lag.max, by = 6)) +
     coord_cartesian(ylim = c(-0.4, 0.4)) +
     theme_minimal(base_size = 12) +
@@ -1308,7 +1208,7 @@ check_residuals <- function(model_bvar) {
     
     grid.arrange(p_qq, p_ts, p_acf, p_pacf, ncol = 2)
     
-    grid.text("Fuente: BCN, SEMCA & FRED | Elaboración propia estimada con modelo BVAR",
+    grid.text("Fuente: BCN, SECMCA & FRED | Elaboración propia estimada con modelo BVAR",
               x = unit(0.98, "npc"), 
               y = unit(0.02, "npc"), 
               just = "right",
@@ -1384,20 +1284,17 @@ fevd_long$Horizonte <- as.numeric(as.character(fevd_long$Horizonte))
 
 #nombres
 variable_labels <- c(
-  "d2_iti" = "Términos de Intercambio",
+  "d1_iti" = "Términos de Intercambio",
   "d1_ipi_eeuu" = "IPI EEUU",
   "d1_remesas" = "Remesas",
-  "d2_itcer" = "Tipo de Cambio Real",
-  "d1_export_manof" = "Export. Manufactura",
-  "d2_no_transable" = "Sector no transable",
-  "d1_export_primaria" = "Export. Primarias"
+  "d1_itcer" = "Tipo de Cambio Real",
+  "d1_transable" = "Sector Transable"
 )
 
 #colores
 line_colors <- c(
   "#1F77B4", "#FF7F0E", "#2CA02C", "#D62728", 
-  "#9467BD", "#8C564B", "#919167"
-)
+  "#9467BD")
 
 #grafico con bandas de confianza
 fevd_plot <- ggplot(fevd_long, aes(x = Horizonte, group = Variable, color = Variable)) +
@@ -1486,7 +1383,7 @@ fevd_plot_remesa_nocum <- ggplot(fevd_long) +
   ) +
   labs(
     title = "Impacto de las Remesas en la Economía Nicaragüense",
-    subtitle = "Contribución Media a la Varianza Explicada por Shocks en Remesas",
+    subtitle = "Contribución Mediana a la Varianza del error Explicada por Shocks en Remesas",
     x = "Horizonte Temporal (Trimestres)",
     y = "Porcentaje de Varianza Explicada",
     fill = "Variable Afectada",
@@ -1601,36 +1498,36 @@ print(fevd_plot_remesa_nocum)
 # 
 # print(fevd_plot_itcer_nocum)
 
-#fevd export
+#itcer
 
-shock_index_manof <- which(variables == "d1_export_manof")
+shock_index_itcer <- which(variables == "d1_itcer")
 
 #calcular media del la variable
-fevd_median_manof <- apply(fevd_result$fevd[, , , shock_index_manof], 
-                           MARGIN = c(2, 3), 
-                           FUN = median)
+fevd_median_itcer <- apply(fevd_result$fevd[, , , shock_index_itcer], 
+                               MARGIN = c(2, 3), 
+                               FUN = median)
 
 #nombres
-rownames(fevd_median_manof) <- variables
-colnames(fevd_median_manof) <- 1:12
+rownames(fevd_median_itcer) <- variables
+colnames(fevd_median_itcer) <- 1:12
 
 #dataframe
-df_median_manof <- as.data.frame(fevd_median_manof)
-df_median_manof$Variable <- rownames(df_median_manof)
-df_median_long_manof <- reshape2::melt(df_median_manof, id.vars = "Variable",
-                                       variable.name = "Horizonte", value.name = "Mediana")
+df_median_itcer <- as.data.frame(fevd_median_itcer)
+df_median_itcer$Variable <- rownames(df_median_itcer)
+df_median_long_itcer <- reshape2::melt(df_median_itcer, id.vars = "Variable",
+                                           variable.name = "Horizonte", value.name = "Mediana")
 
 #horizonte numerico
-df_median_long_manof$Horizonte <- as.numeric(as.character(df_median_long_manof$Horizonte))
+df_median_long_itcer$Horizonte <- as.numeric(as.character(df_median_long_itcer$Horizonte))
 
 #media con horizonte 12
-medianas_h12_manof <- df_median_long_manof %>%
+medianas_h12_itcer <- df_median_long_itcer %>%
   filter(Horizonte == 12) %>%
   arrange(desc(Mediana))
-orden_variables_manof <- medianas_h12_manof$Variable
+orden_variables_itcer <- medianas_h12_itcer$Variable
 
 #grafico
-fevd_plot_manof_nocum <- ggplot(df_median_long_manof) +
+fevd_plot_itcer_nocum <- ggplot(df_median_long_itcer) +
   geom_area(
     aes(
       x = Horizonte,
@@ -1656,93 +1553,8 @@ fevd_plot_manof_nocum <- ggplot(df_median_long_manof) +
     expand = expansion(add = c(0.5, 0.5))
   ) +
   labs(
-    title = "Impacto de las Exportaciones Manufactura en la Economía Nicaragüense",
-    subtitle = "Contribución Mediana a la Varianza Explicada por Shocks en el ITCER",
-    x = "Horizonte Temporal (Trimestres)",
-    y = "Porcentaje de Varianza Explicada",
-    fill = "Variable Afectada",
-    caption = "Fuente: BCN, SEMCA & FRED | Elaboración propia estimada con modelo BVAR"
-  ) +
-  theme_minimal(base_size = 15) +
-  theme(
-    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
-    plot.subtitle = element_text(size = 16, hjust = 0.5, color = "gray40"),
-    plot.caption = element_text(face = "italic", size = 16, hjust = 1),
-    axis.title = element_text(face = "bold", size = 15),
-    legend.title = element_text(face = "bold", size = 15),
-    legend.position = "bottom",
-    legend.text = element_text(size = 15),
-    panel.grid.major = element_line(color = "grey90"),
-    panel.grid.minor = element_blank(),
-    plot.background = element_rect(fill = "white", color = NA),
-    panel.background = element_rect(fill = "white")
-  ) +
-  guides(
-    fill = guide_legend(
-      title.position = "top",
-      title.hjust = 0.5,
-      nrow = 2
-    )
-  )
-
-print(fevd_plot_manof_nocum)
-
-#itcer
-
-shock_index_itcer <- which(variables == "d2_itcer")
-
-#fevd con medias
-fevd_mean_itcer <- apply(fevd_result$fevd[, , , shock_index_itcer], 
-                         MARGIN = c(2, 3), 
-                         FUN = mean)  
-
-#nombres
-rownames(fevd_mean_itcer) <- variables
-colnames(fevd_mean_itcer) <- 1:12
-
-#convertir a dataframe
-df_mean_itcer <- as.data.frame(fevd_mean_itcer)
-df_mean_itcer$Variable <- rownames(df_mean_itcer)
-df_mean_long_itcer <- reshape2::melt(df_mean_itcer, id.vars = "Variable",
-                                     variable.name = "Horizonte", value.name = "Media")
-
-#horizonte numerico
-df_mean_long_itcer$Horizonte <- as.numeric(as.character(df_mean_long_itcer$Horizonte))
-
-medias_h12_itcer <- df_mean_long_itcer %>%
-  filter(Horizonte == 12) %>%
-  arrange(desc(Media))
-orden_variables_itcer <- medias_h12_itcer$Variable
-
-# grafico con media
-fevd_plot_itcer_nocum <- ggplot(df_mean_long_itcer) +
-  geom_area(
-    aes(
-      x = Horizonte,
-      y = Media * 100,  #convertir a %
-      fill = Variable
-    ),
-    position = "stack",
-    alpha = 0.85,
-    color = "white",
-    linewidth = 0.3
-  ) +
-  scale_fill_manual(
-    values = line_colors,
-    labels = variable_labels
-  ) +
-  scale_y_continuous(
-    limits = c(0, 100),
-    breaks = seq(0, 100, by = 10),
-    labels = scales::percent_format(scale = 1)
-  ) +
-  scale_x_continuous(
-    breaks = seq(1, 12, by = 1),
-    expand = expansion(add = c(0.5, 0.5))
-  ) +
-  labs(
-    title = "Impacto del ITCER en la Economía Nicaragüense",
-    subtitle = "Contribución Media a la Varianza Explicada por Shocks en el TCR",
+    title = "Impacto del Sector No Transable en la Economía Nicaragüense",
+    subtitle = "Contribución Mediana a la Varianza del error Explicada por Shocks en el Itcer",
     x = "Horizonte Temporal (Trimestres)",
     y = "Porcentaje de Varianza Explicada",
     fill = "Variable Afectada",
@@ -1772,36 +1584,36 @@ fevd_plot_itcer_nocum <- ggplot(df_mean_long_itcer) +
 
 print(fevd_plot_itcer_nocum)
 
-#fevd no transable
+#fevd transable
 
-shock_index_no_transable <- which(variables == "d2_no_transable")
+shock_index_transable <- which(variables == "d1_transable")
 
 #calcular media del la variable
-fevd_median_no_transable <- apply(fevd_result$fevd[, , , shock_index_no_transable], 
-                           MARGIN = c(2, 3), 
-                           FUN = median)
+fevd_median_transable <- apply(fevd_result$fevd[, , , shock_index_transable], 
+                                  MARGIN = c(2, 3), 
+                                  FUN = median)
 
 #nombres
-rownames(fevd_median_no_transable) <- variables
-colnames(fevd_median_no_transable) <- 1:12
+rownames(fevd_median_transable) <- variables
+colnames(fevd_median_transable) <- 1:12
 
 #dataframe
-df_median_no_transable <- as.data.frame(fevd_median_no_transable)
-df_median_no_transable$Variable <- rownames(df_median_no_transable)
-df_median_long_no_transable <- reshape2::melt(df_median_no_transable, id.vars = "Variable",
-                                       variable.name = "Horizonte", value.name = "Mediana")
+df_median_transable <- as.data.frame(fevd_median_transable)
+df_median_transable$Variable <- rownames(df_median_transable)
+df_median_long_transable <- reshape2::melt(df_median_transable, id.vars = "Variable",
+                                              variable.name = "Horizonte", value.name = "Mediana")
 
 #horizonte numerico
-df_median_long_no_transable$Horizonte <- as.numeric(as.character(df_median_long_no_transable$Horizonte))
+df_median_long_transable$Horizonte <- as.numeric(as.character(df_median_long_transable$Horizonte))
 
 #media con horizonte 12
-medianas_h12_no_transable <- df_median_long_no_transable %>%
+medianas_h12_transable <- df_median_long_transable %>%
   filter(Horizonte == 12) %>%
   arrange(desc(Mediana))
-orden_variables_no_transable <- medianas_h12_no_transable$Variable
+orden_variables_transable <- medianas_h12_transable$Variable
 
 #grafico
-fevd_plot_no_transable_nocum <- ggplot(df_median_long_no_transable) +
+fevd_plot_transable_nocum <- ggplot(df_median_long_transable) +
   geom_area(
     aes(
       x = Horizonte,
@@ -1827,8 +1639,8 @@ fevd_plot_no_transable_nocum <- ggplot(df_median_long_no_transable) +
     expand = expansion(add = c(0.5, 0.5))
   ) +
   labs(
-    title = "Impacto del Sector No Transable en la Economía Nicaragüense",
-    subtitle = "Contribución Mediana a la Varianza Explicada por Shocks en el ITCER",
+    title = "Impacto del Sector Transable en la Economía Nicaragüense",
+    subtitle = "Contribución Mediana a la Varianza del error Explicada por Shocks en el Sector Transable",
     x = "Horizonte Temporal (Trimestres)",
     y = "Porcentaje de Varianza Explicada",
     fill = "Variable Afectada",
@@ -1856,93 +1668,7 @@ fevd_plot_no_transable_nocum <- ggplot(df_median_long_no_transable) +
     )
   )
 
-print(fevd_plot_no_transable_nocum)
-
-#export primaria
-
-shock_index_primaria <- which(variables == "d1_export_primaria")
-
-#calcular mediana del la variable
-fevd_median_primaria <- apply(fevd_result$fevd[, , , shock_index_primaria], 
-                              MARGIN = c(2, 3), 
-                              FUN = median)
-
-#nombres
-rownames(fevd_median_primaria) <- variables
-colnames(fevd_median_primaria) <- 1:12
-
-#dataframe
-df_median_primaria <- as.data.frame(fevd_median_primaria)
-df_median_primaria$Variable <- rownames(df_median_primaria)
-df_median_long_primaria <- reshape2::melt(df_median_primaria, id.vars = "Variable",
-                                          variable.name = "Horizonte", value.name = "Mediana")
-
-#horizonte numerico
-df_median_long_primaria$Horizonte <- as.numeric(as.character(df_median_long_primaria$Horizonte))
-
-#mediana con horizonte 12
-medianas_h12_primaria <- df_median_long_primaria %>%
-  filter(Horizonte == 12) %>%
-  arrange(desc(Mediana))
-orden_variables_primaria <- medianas_h12_primaria$Variable
-
-#grafico
-fevd_plot_primaria_nocum <- ggplot(df_median_long_primaria) +
-  geom_area(
-    aes(
-      x = Horizonte,
-      y = Mediana * 100,  #convertir a porcentaje
-      fill = Variable
-    ),
-    position = "stack",
-    alpha = 0.85,
-    color = "white",
-    linewidth = 0.3
-  ) +
-  scale_fill_manual(
-    values = line_colors,
-    labels = variable_labels
-  ) +
-  scale_y_continuous(
-    limits = c(0, 100),
-    breaks = seq(0, 100, by = 10),
-    labels = scales::percent_format(scale = 1)
-  ) +
-  scale_x_continuous(
-    breaks = seq(1, 12, by = 1),
-    expand = expansion(add = c(0.5, 0.5))
-  ) +
-  labs(
-    title = "Impacto de las Exportaciones Primarias en la Economía Nicaragüense",
-    subtitle = "Contribución Mediana a la Varianza Explicada por Shocks en Exportaciones Primarias",
-    x = "Horizonte Temporal (Trimestres)",
-    y = "Porcentaje de Varianza Explicada",
-    fill = "Variable Afectada",
-    caption = "Fuente: BCN, SEMCA & FRED | Elaboración propia estimada con modelo BVAR"
-  ) +
-  theme_minimal(base_size = 15) +
-  theme(
-    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
-    plot.subtitle = element_text(size = 16, hjust = 0.5, color = "gray40"),
-    plot.caption = element_text(face = "italic", size = 16, hjust = 1),
-    axis.title = element_text(face = "bold", size = 15),
-    legend.title = element_text(face = "bold", size = 15),
-    legend.position = "bottom",
-    legend.text = element_text(size = 15),
-    panel.grid.major = element_line(color = "grey90"),
-    panel.grid.minor = element_blank(),
-    plot.background = element_rect(fill = "white", color = NA),
-    panel.background = element_rect(fill = "white")
-  ) +
-  guides(
-    fill = guide_legend(
-      title.position = "top",
-      title.hjust = 0.5,
-      nrow = 2
-    )
-  )
-
-print(fevd_plot_primaria_nocum)
+print(fevd_plot_transable_nocum)
 
 #para ver el horizonte fevd, quitar #
 
@@ -1955,73 +1681,48 @@ print(fevd_long)
 #este es el fev de todas la variables juntas
 #print(fevd_long, n = Inf)
 
-#sacar dataframe del fevd_long para tabla latex Remesas
-tabla_xtable <- xtable(fevd_long,
-                       caption = "fevd")
 
-print(tabla_xtable,
-      type = "latex",
-      file = "fevd_tabla_xtable.tex",
-      include.rownames = FALSE)
+#exportar a excel
+shocks <- c("d1_remesas", "d1_itcer", "d1_transable")
+sheets <- list()
 
+#Calcular medianas y cuantiles (2.5% y 97.5%) sobre las draws
+fevd_median_all <- apply(fevd_result$fevd, MARGIN = c(2,3,4), FUN = median)
+fevd_lower_all  <- apply(fevd_result$fevd, MARGIN = c(2,3,4), FUN = function(x) quantile(x, probs = 0.025))
+fevd_upper_all  <- apply(fevd_result$fevd, MARGIN = c(2,3,4), FUN = function(x) quantile(x, probs = 0.975))
 
-# Imprimir la tabla en formato LaTeX
-print(tabla_xtable,
-      type = "latex",
-      file = "fevd_tabla.tex",
-      include.rownames = FALSE,
-      caption.placement = "top",
-      table.placement = "!htb",
-      size = "small",
-      sanitize.text.function = function(x){x})
+#sheet de resumen a h = 12 (matriz variables x shocks) en %
+sheets[["FEVD_h12_median_pct"]] <- cbind(Variable = rownames(as.data.frame(fevd_median_all[,12,])),
+                                         as.data.frame(fevd_median_all[,12,] * 100))
+sheets[["FEVD_h12_lower_pct"]]  <- cbind(Variable = rownames(as.data.frame(fevd_lower_all[,12,])),
+                                         as.data.frame(fevd_lower_all[,12,] * 100))
+sheets[["FEVD_h12_upper_pct"]]  <- cbind(Variable = rownames(as.data.frame(fevd_upper_all[,12,])),
+                                         as.data.frame(fevd_upper_all[,12,] * 100))
 
-# También mostrar la tabla en la consola
-print(tabla_xtable, include.rownames = FALSE)
+#sheet por shock: wide (filas = variable, cols = 1:12) en % para median/lower/upper
+for(sh in shocks){
+  i <- which(variables == sh)
+  if(length(i) == 0) stop(paste0("No existe la variable: ", sh))
+  
+  mat_med  <- fevd_median_all[ , , i] * 100   #[variable, horizonte]
+  mat_low  <- fevd_lower_all[ , , i] * 100
+  mat_high <- fevd_upper_all[ , , i] * 100
+  
+  df_med  <- as.data.frame(mat_med);  df_med  <- cbind(Variable = rownames(df_med),  df_med)
+  df_low  <- as.data.frame(mat_low);  df_low  <- cbind(Variable = rownames(df_low),  df_low)
+  df_high <- as.data.frame(mat_high); df_high <- cbind(Variable = rownames(df_high), df_high)
+  
+  sheets[[paste0(sh, "_median_pct")]] <- df_med
+  sheets[[paste0(sh, "_lower_pct")]]  <- df_low
+  sheets[[paste0(sh, "_upper_pct")]]  <- df_high
+}
 
-#fevd sector no transable y exportaciones latex
-tabla_xtable <- xtable(fevd_long,
-                       caption = "fevd")
-
-print(tabla_xtable,
-      type = "latex",
-      file = "exporta.tex",
-      include.rownames = FALSE)
-
-
-# Imprimir la tabla en formato LaTeX
-print(tabla_xtable,
-      type = "latex",
-      file = "fevd_tabla.tex",
-      include.rownames = FALSE,
-      caption.placement = "top",
-      table.placement = "!htb",
-      size = "small",
-      sanitize.text.function = function(x){x})
-
+#el excel
+out <- "fevd_modelo_transable.xlsx"
+writexl::write_xlsx(sheets, path = out)
+message("Exportado: ", normalizePath(out))
 
 
 # Agregar nota al pie manualmente
 cat("Los valores representan el porcentaje de la varianza de cada variable explicada por shocks la variables. Los intervalos de confianza al 95% se muestran entre corchetes.\n")
-cat("Fuente: Elaboración propia con modelo BVAR.\n")
-
-
-# matriz de correlacion de residuos
-
-res_cor <- cor(residuals(model_bvar_final))
-
-ggplot(reshape2::melt(res_cor), aes(Var1, Var2, fill = value)) +
-  geom_tile(color = "white") +
-  scale_fill_gradient2(low = "#E74C3C", high = "#3498DB", mid = "white", 
-                       midpoint = 0, limit = c(-1,1)) +
-  geom_text(aes(label = round(value, 2)), color = "black", size = 3.5) +
-  labs(caption = "Fuente: BCN, SEMCA & FRED | Elaboración propia estimada con modelo BVAR",
-      title = "Correlación Contemporánea entre Residuos",
-       x = "", y = ""
-       ) +
-  theme_minimal(base_size = 15) +
-  theme(
-      axis.text.x = element_text(angle = 45, hjust = 1),
-      plot.caption = element_text(size = 10)
-      )
-
-###########################################################################################################
+##################################################################################################################################################################################
