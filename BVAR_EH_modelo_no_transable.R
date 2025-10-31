@@ -810,9 +810,9 @@ print(combined_33)
 #lista usada 
 irf_combinados_no_transable <- list(
   get_irf_data(irf_all, "d1_remesas", "d1_itcer"),
-  get_irf_data(irf_all, "d2_itcer", "d1_no_transable"),
+  get_irf_data(irf_all, "d1_itcer", "d1_no_transable"),
   get_irf_data(irf_all, "d1_ipi_eeuu", "d1_itcer"),
-  get_irf_data(irf_all, "d2_iti", "d1_itcer"),
+  get_irf_data(irf_all, "d1_iti", "d1_itcer"),
   get_irf_data(irf_all, "d1_remesas", "d1_no_transable")
 )
 
