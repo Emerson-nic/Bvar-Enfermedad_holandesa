@@ -122,6 +122,7 @@ resultados$d1_remesas <- verificar_estacionariedad(
   diff = 1
 )
 
+
 #dataset
 endogenas_transformadas <- data.frame(
   d1_itcer = c(NA, diff(data$itcer)),
@@ -1724,5 +1725,4 @@ message("Exportado: ", normalizePath(out))
 
 # Agregar nota al pie manualmente
 cat("Los valores representan el porcentaje de la varianza de cada variable explicada por shocks la variables. Los intervalos de confianza al 95% se muestran entre corchetes.\n")
-##################################################################################################################################################################################
-
+#################################################################################################################################################################################
